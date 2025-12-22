@@ -5,7 +5,6 @@
 
 package meteordevelopment.meteorclient.systems.modules.player;
 
-
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -115,29 +114,34 @@ public class AutoTool extends Module {
     );
 
     private boolean wasPressed;
-    private boolean shouldSwitch;
-    private int ticks;
     private int bestSlot;
+    private int swapToTicks = -1;
+    private int swapBackTicks = -1;
 
     public AutoTool() {
         super(Categories.Player, "auto-tool", "Automatically switches to the most effective tool when performing an action.");
     }
 
     @EventHandler
-    private void onTick(TickEvent.Post event) {
-        if (Modules.get().isActive(InfinityMiner.class)) return;
-
-        if (switchBack.get() && !mc.options.attackKey.isPressed() && wasPressed && InvUtils.previousSlot != -1) {
+    private void onTick(TickEvent.Pre event) {
+        if (Modules.get().isActive(InfinityMiner.class))
+            return;
+        if (swapToTicks >= 0 && swapToTicks-- == 0)
+            InvUtils.swap(bestSlot, switchBack.get());
+        if (swapBackTicks >= 0 && swapBackTicks-- == 0)
             InvUtils.swapBack();
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Post event) {
+        if (Modules.get().isActive(InfinityMiner.class))
+            return;
+
+        if (switchBack.get() && !mc.options.attackKey.isPressed() && wasPressed && InvUtils.previousSlot != -1
+                && swapBackTicks < 0) {
+            swapBackTicks = switchDelay.get();
             wasPressed = false;
             return;
-        }
-
-        if (ticks <= 0 && shouldSwitch && bestSlot != -1) {
-            InvUtils.swap(bestSlot, switchBack.get());
-            shouldSwitch = false;
-        } else {
-            ticks--;
         }
 
         wasPressed = mc.options.attackKey.isPressed();
@@ -174,10 +178,7 @@ public class AutoTool extends Module {
         }
 
         if ((bestSlot != -1 && (bestScore > getScore(currentStack, blockState, silkTouchForEnderChest.get(), fortuneForOresCrops.get(), prefer.get(), itemStack -> !shouldStopUsing(itemStack))) || shouldStopUsing(currentStack) || !isTool(currentStack))) {
-            ticks = switchDelay.get();
-
-            if (ticks == 0) InvUtils.swap(bestSlot, true);
-            else shouldSwitch = true;
+            swapToTicks = switchDelay.get();
         }
 
         // Anti break
